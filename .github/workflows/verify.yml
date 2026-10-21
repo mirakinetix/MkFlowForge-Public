@@ -1,0 +1,40 @@
+name: Verify MkFlowForge
+
+on:
+  push:
+    branches:
+      - main
+      - integration
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+      - integration
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Build and test
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-latest
+          - macos-latest
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Check out committed source
+        uses: actions/checkout@v4
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      - name: Verify project
+        run: mvn --batch-mode --no-transfer-progress clean verify
