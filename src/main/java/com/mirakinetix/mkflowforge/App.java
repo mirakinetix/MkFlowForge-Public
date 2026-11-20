@@ -336,6 +336,21 @@ public final class App extends Application {
         center.setAlignment(Pos.TOP_CENTER);
         center.setPadding(new Insets(34));
         root.setCenter(center);
+        javafx.scene.layout.FlowPane brandFooter = new javafx.scene.layout.FlowPane(8, 4);
+        brandFooter.setAlignment(Pos.CENTER);
+        brandFooter.setPadding(new Insets(8));
+        String[][] brandLinks = {
+                {"MIRAKINETIX", "https://mirakinetix.com/"},
+                {"LinkedIn", "https://www.linkedin.com/in/devdutt-parab/"},
+                {"dev dparab.me", "https://dparab.me/"}
+        };
+        for (String[] link : brandLinks) {
+            if (!brandFooter.getChildren().isEmpty()) brandFooter.getChildren().add(new Label("·"));
+            Hyperlink button = new Hyperlink(link[0]);
+            button.setOnAction(event -> getHostServices().showDocument(link[1]));
+            brandFooter.getChildren().add(button);
+        }
+        root.setBottom(brandFooter);
 
         Scene scene = new Scene(root, 1100, 780);
         scene.getStylesheets().add(
