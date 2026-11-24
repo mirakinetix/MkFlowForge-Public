@@ -3,7 +3,7 @@
 
 **Local-first voice dictation for your desktop.**
 
-MkFlowForge is a Java desktop voice-dictation application developed by **Mirakinetix**. It combines microphone recording, local speech recognition using whisper.cpp, and global keyboard shortcuts to help you dictate text into your workflow.
+MkFlowForge is a Java desktop voice-dictation application developed by **Mirakinetix**. It combines microphone recording and local speech recognition using whisper.cpp.
 
 **Build. Automate. Scale.**
 
@@ -11,21 +11,13 @@ MkFlowForge is a Java desktop voice-dictation application developed by **Mirakin
 
 - Desktop voice-dictation interface built with JavaFX.
 - Local speech recognition through whisper.cpp.
-- Global keyboard shortcuts to toggle dictation.
-- Automatic language detection through whisper.cpp.
+- In-app recording controls; no global keyboard hook is installed.
+- Edit or copy the transcript from the app.
+- Multilingual transcription with automatic detection or a selectable spoken language.
+- Optional translation of recognized speech into English.
 - Configurable local speech-engine and model paths.
 - Maven-based build and automated tests.
 - Windows and macOS are the intended desktop platforms.
-
-## Keyboard shortcuts
-
-| Platform | Shortcut |
-| --- | --- |
-| Windows | `Ctrl + Shift + M` |
-| Windows alternative | `Ctrl + Alt + F9` |
-| macOS | `Command + Option + F9` |
-
-The shortcuts toggle the dictation action. Your operating system or another application may reserve certain key combinations, which can affect their availability.
 
 ## Requirements
 
@@ -43,8 +35,8 @@ The speech-recognition executable and model are **not bundled with this source c
 Clone the repository:
 
 ```powershell
-git clone https://github.com/mirakinetix/MkFlowForge.git
-cd MkFlowForge
+git clone https://github.com/mirakinetix/MkFlowForge-Public.git
+cd MkFlowForge-Public
 ```
 
 Verify the project and run its tests:
@@ -107,7 +99,7 @@ The executable must be compatible with your operating system and processor archi
 
 ## Privacy and local processing
 
-MkFlowForge is designed around local speech recognition: recorded audio is passed to the locally configured whisper.cpp executable rather than a hosted transcription API.
+MkFlowForge is designed around local speech recognition: recorded audio is passed to the locally configured whisper.cpp executable rather than a hosted transcription API. Its multilingual model can transcribe supported spoken languages; selecting a known language can help when auto-detection is unreliable. Optional translation uses whisper.cpp's English-target translation mode.
 
 - Keep your speech-recognition executable and model on a device you control.
 - Review the executable and model sources before installing them.
@@ -123,7 +115,6 @@ The project uses:
 - Java 25
 - JavaFX
 - Maven
-- JNativeHook for global keyboard shortcuts
 - JUnit 5 for automated tests
 
 Run the verification suite with:
@@ -138,8 +129,9 @@ GitHub Actions also runs the verification workflow on Windows and macOS for conf
 
 - This repository provides application source code, not a ready-made Windows or macOS installer.
 - The whisper.cpp executable and model must be installed separately.
-- Microphone access and global keyboard hooks may require operating-system permissions.
-- Keyboard shortcuts can conflict with other software.
+- Microphone access may require operating-system permission.
+- Global dictation shortcuts and automatic text insertion are unavailable in this preview. Use the in-app controls to record, edit, and copy text.
+- Sticky Notes posting is disabled in this preview.
 - Compatibility should be validated on the target machine before relying on the application.
 
 ## Contributing
@@ -158,6 +150,6 @@ Please include your operating system, Java version, reproduction steps, and rele
 
 - Website: https://mirakinetix.com
 - LinkedIn: https://www.linkedin.com/in/devdutt-parab/
-- Source repository: https://github.com/mirakinetix/MkFlowForge
+- Source repository: https://github.com/mirakinetix/MkFlowForge-Public
 
 **Build. Automate. Scale.**

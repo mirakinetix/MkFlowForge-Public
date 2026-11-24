@@ -10,8 +10,29 @@ import java.time.Duration;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class WhisperCppTranscriberTest {
+
+    @Test
+    void retriesReportedUrduOutputOnlyInAutoMode() throws IOException {
+        assertTrue(WhisperCppTranscriber.shouldRetryInHindi(
+                "میرہ نام دیوتت ہے, مجھا نہ دیوتت آئی", "auto"));
+    }
+
+    @Test
+    void rejectsUnwantedOutputWithoutOverridingChosenLanguage() {
+        for (String language : new String[]{"en", "mr", "hi"}) {
+            assertThrows(IOException.class, () -> WhisperCppTranscriber.shouldRetryInHindi(
+                    "میرا نام دیودت ہے، مجھا نا دیودت آئے، می نیم از دیودت.", language));
+        }
+    }
+
+    @Test
+    void preservesEnglishHindiAndMarathiTranscript() throws IOException {
+        assertFalse(WhisperCppTranscriber.shouldRetryInHindi(
+                "My name is Devdutt. मेरा नाम देवदत्त है। माझे नाव देवदत्त आहे.", "auto"));
+    }
 
     @TempDir
     Path tempDir;
