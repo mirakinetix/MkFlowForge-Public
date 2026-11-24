@@ -86,6 +86,27 @@
     -fx-font-weight: bold;
 }
 
+.combo-box {
+    -fx-background-color: #1a2942;
+    -fx-border-color: #354b6d;
+    -fx-border-radius: 8px;
+    -fx-background-radius: 8px;
+}
+
+.combo-box .list-cell {
+    -fx-text-fill: #e4edfb;
+    -fx-background-color: #1a2942;
+}
+
+.check-box {
+    -fx-text-fill: #e4edfb;
+}
+
+.check-box .box {
+    -fx-background-color: #0a1325;
+    -fx-border-color: #4774a7;
+}
+
 .transcript-area {
     -fx-font-size: 15px;
     -fx-text-fill: #f0f5ff;
@@ -136,6 +157,21 @@
 .button-secondary:hover {
     -fx-background-color: #243957;
     -fx-border-color: #4774a7;
+}
+
+.button-install {
+    -fx-background-color: #183d35;
+    -fx-text-fill: #e6fff5;
+    -fx-padding: 11px 15px;
+    -fx-background-radius: 9px;
+    -fx-border-color: #367d68;
+    -fx-border-radius: 9px;
+    -fx-cursor: hand;
+}
+
+.button-install:hover {
+    -fx-background-color: #205242;
+    -fx-border-color: #54a88d;
 }
 
 .button-record {

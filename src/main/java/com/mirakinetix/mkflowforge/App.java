@@ -2,17 +2,18 @@
 package com.mirakinetix.mkflowforge;
 
 import com.mirakinetix.mkflowforge.application.LocalTextRefiner;
+import com.mirakinetix.mkflowforge.application.PostItCommandParser;
 import com.mirakinetix.mkflowforge.infrastructure.audio.JavaSoundRecorder;
-import com.mirakinetix.mkflowforge.infrastructure.hotkey.GlobalHotkeyService;
-import com.mirakinetix.mkflowforge.infrastructure.insertion.SystemTextInserter;
+import com.mirakinetix.mkflowforge.infrastructure.notes.WindowsStickyNotesService;
 import com.mirakinetix.mkflowforge.infrastructure.speech.WhisperCppTranscriber;
-import com.github.kwhat.jnativehook.NativeHookException;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
+import javafx.scene.control.CheckBox;
+import javafx.scene.control.ComboBox;
 import javafx.scene.control.Hyperlink;
 import javafx.scene.control.Label;
 import javafx.scene.control.TextArea;
@@ -21,6 +22,7 @@ import javafx.scene.image.ImageView;
 import javafx.scene.input.Clipboard;
 import javafx.scene.input.ClipboardContent;
 import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.FlowPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -29,16 +31,19 @@ import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class App extends Application {
 
     private final LocalTextRefiner refiner = new LocalTextRefiner();
+    private final PostItCommandParser postItCommandParser =
+            new PostItCommandParser();
     private final JavaSoundRecorder recorder = new JavaSoundRecorder();
     private final WhisperCppTranscriber transcriber = new WhisperCppTranscriber();
-    private final SystemTextInserter textInserter = new SystemTextInserter();
+    private final WindowsStickyNotesService stickyNotesService =
+            new WindowsStickyNotesService();
 
     @Override
     public void start(Stage stage) {
@@ -91,7 +96,7 @@ public final class App extends Application {
         title.setWrapText(true);
 
         Label subtitle = new Label(
-                "Dictate offline, then paste recognized text into the active app."
+                "Dictate offline in your chosen language, or translate speech into English."
         );
         subtitle.getStyleClass().add("hero-subtitle");
         subtitle.setWrapText(true);
@@ -115,6 +120,38 @@ public final class App extends Application {
         feedback.getStyleClass().add("feedback-text");
         feedback.setWrapText(true);
 
+        Label languageLabel = new Label("Spoken language");
+        languageLabel.getStyleClass().add("section-label");
+        ComboBox<LanguageOption> languageChoice = new ComboBox<>();
+        languageChoice.getItems().setAll(List.of(
+                new LanguageOption("Auto-detect", "auto"),
+                new LanguageOption("English", "en"),
+                new LanguageOption("Hindi", "hi"),
+                new LanguageOption("Marathi", "mr"),
+                new LanguageOption("Gujarati", "gu"),
+                new LanguageOption("Bengali", "bn"),
+                new LanguageOption("Tamil", "ta"),
+                new LanguageOption("Telugu", "te"),
+                new LanguageOption("Kannada", "kn"),
+                new LanguageOption("Malayalam", "ml"),
+                new LanguageOption("Punjabi", "pa"),
+                new LanguageOption("Spanish", "es"),
+                new LanguageOption("French", "fr"),
+                new LanguageOption("German", "de"),
+                new LanguageOption("Portuguese", "pt"),
+                new LanguageOption("Chinese", "zh"),
+                new LanguageOption("Japanese", "ja"),
+                new LanguageOption("Arabic", "ar"),
+                new LanguageOption("Russian", "ru")
+        ));
+        languageChoice.getSelectionModel().selectFirst();
+        languageChoice.setPrefWidth(175);
+        languageChoice.setAccessibleText("Choose the language spoken in the recording");
+        CheckBox translateEnglish = new CheckBox("Translate to English");
+        translateEnglish.setAccessibleText("Translate recognized speech into English");
+        HBox languageSettings = new HBox(12, languageLabel, languageChoice, translateEnglish);
+        languageSettings.setAlignment(Pos.CENTER_LEFT);
+
         Button recordButton = new Button("Start recording");
         recordButton.getStyleClass().add("button-record");
 
@@ -122,7 +159,25 @@ public final class App extends Application {
         stopButton.getStyleClass().add("button-stop");
         stopButton.setDisable(true);
 
-        AtomicBoolean pasteAfterTranscription = new AtomicBoolean(false);
+        Button postNoteButton = new Button("Post as Sticky Note");
+        postNoteButton.getStyleClass().add("button-secondary");
+        postNoteButton.setDisable(true);
+
+        Button installStickyNotesButton = new Button("Install Sticky Notes");
+        installStickyNotesButton.getStyleClass().add("button-install");
+        installStickyNotesButton.setVisible(false);
+        installStickyNotesButton.setManaged(false);
+        installStickyNotesButton.setOnAction(event -> {
+            try {
+                getHostServices().showDocument(
+                        "ms-windows-store://search/?query=Microsoft%20Sticky%20Notes"
+                );
+            } catch (RuntimeException exception) {
+                feedback.setText(
+                        "Could not open Microsoft Store. Your transcript is still available to copy."
+                );
+            }
+        });
 
         Button refineButton = new Button("Refine transcript");
         refineButton.getStyleClass().add("button-primary");
@@ -162,6 +217,7 @@ public final class App extends Application {
         recordButton.setOnAction(event -> {
             recordButton.setDisable(true);
             stopButton.setDisable(true);
+            postNoteButton.setDisable(true);
             feedback.setText("Opening microphone...");
 
             CompletableFuture.supplyAsync(() -> {
@@ -181,17 +237,20 @@ public final class App extends Application {
                 }
 
                 stopButton.setDisable(false);
-                feedback.setText(
-                        "Recording in progress. Speak, then click Stop or press "
-                                + GlobalHotkeyService.shortcutDescription() + "."
-                );
+                feedback.setText("Recording in progress. Speak, then click Stop recording.");
             }));
         });
 
         stopButton.setOnAction(event -> {
             stopButton.setDisable(true);
             recordButton.setDisable(true);
+            postNoteButton.setDisable(true);
             feedback.setText("Recording saved. Transcribing locally...");
+            LanguageOption selectedLanguage = languageChoice.getValue();
+            String selectedLanguageCode = selectedLanguage == null
+                    ? "auto"
+                    : selectedLanguage.code();
+            boolean translateToEnglish = translateEnglish.isSelected();
 
             CompletableFuture.supplyAsync(() -> {
                 final Path wav;
@@ -199,31 +258,21 @@ public final class App extends Application {
                 try {
                     wav = recorder.stopRecording();
                 } catch (Exception exception) {
-                    pasteAfterTranscription.set(false);
                     throw new CompletionException(exception);
                 }
 
-                boolean pasteIntoActiveApp =
-                        pasteAfterTranscription.getAndSet(false);
-
                 try {
-                    String text = transcriber.transcribe(wav);
-                    Throwable insertionError = null;
-
-                    if (pasteIntoActiveApp && !text.isBlank()) {
-                        try {
-                            textInserter.paste(refiner.refine(text));
-                        } catch (Exception exception) {
-                            insertionError = exception;
-                        }
-                    }
-
+                    String text = refiner.refine(transcriber.transcribe(
+                            wav,
+                            selectedLanguageCode,
+                            translateToEnglish
+                    ));
                     return new TranscriptionOutcome(
-                            wav, text, null, insertionError, pasteIntoActiveApp
+                            wav, text, null, false, false, null, null
                     );
                 } catch (Exception exception) {
                     return new TranscriptionOutcome(
-                            wav, "", exception, null, pasteIntoActiveApp
+                            wav, "", exception, false, false, null, null
                     );
                 }
             }).whenComplete((outcome, failure) -> Platform.runLater(() -> {
@@ -253,64 +302,42 @@ public final class App extends Application {
                     return;
                 }
 
-                transcript.setText(refiner.refine(outcome.text()));
+                transcript.setText(outcome.text());
 
-                if (outcome.insertionError() != null) {
-                    feedback.setText(
-                            "Transcription complete, but automatic paste failed: "
-                                    + errorMessage(outcome.insertionError())
-                                    + ". You can use Copy text."
-                    );
-                } else if (outcome.pastedIntoActiveApp()) {
-                    feedback.setText(
-                            "Offline transcription pasted into the active app. WAV: "
-                                    + outcome.audio().getFileName()
-                    );
+                if (outcome.postItRequested()) {
+                    if (outcome.emptyPostItContent()) {
+                        feedback.setText(
+                                "Say the note contents first, then say “post it.”"
+                        );
+                    } else if (outcome.postItError() != null) {
+                        feedback.setText(
+                                "Transcript kept here, but Sticky Notes could not be opened: "
+                                        + errorMessage(outcome.postItError())
+                                        + ". You can copy the text."
+                        );
+                    } else {
+                        showStickyNotesResult(
+                                outcome.postItResult(),
+                                feedback,
+                                installStickyNotesButton
+                        );
+                    }
                 } else {
                     feedback.setText(
-                            "Offline transcription complete. WAV: "
-                                    + outcome.audio().getFileName()
+                            "Offline transcription complete. You can edit or copy the text."
                     );
                 }
             }));
         });
 
-        GlobalHotkeyService hotkeyService = new GlobalHotkeyService(() ->
-                Platform.runLater(() -> {
-                    if (!recordButton.isDisabled() && stopButton.isDisabled()) {
-                        recordButton.fire();
-                    } else if (recordButton.isDisabled() && !stopButton.isDisabled()) {
-                        pasteAfterTranscription.set(true);
-                        stopButton.fire();
-                    } else {
-                        feedback.setText(
-                                "Dictation is busy. Wait until the current operation finishes."
-                        );
-                    }
-                })
-        );
-
-        try {
-            hotkeyService.start();
-            feedback.setText(
-                    "Ready. Press " + GlobalHotkeyService.shortcutDescription()
-                            + " to dictate into the active app."
-            );
-        } catch (NativeHookException exception) {
-            feedback.setText(
-                    "Global shortcut unavailable: " + errorMessage(exception)
-                            + ". Use the recording buttons."
-            );
-        }
-
-        HBox actions = new HBox(
-                10, recordButton, stopButton, refineButton, copyButton, clearButton
+        FlowPane actions = new FlowPane(
+                8, 8, recordButton, stopButton, refineButton, copyButton,
+                postNoteButton, installStickyNotesButton, clearButton
         );
         actions.setAlignment(Pos.CENTER_LEFT);
-        actions.setSpacing(8);
 
         VBox editor = new VBox(
-                14, editorLabel, transcript, actions, feedback
+                14, editorLabel, languageSettings, transcript, actions, feedback
         );
         editor.getStyleClass().add("editor-card");
         VBox.setVgrow(transcript, Priority.ALWAYS);
@@ -320,8 +347,7 @@ public final class App extends Application {
 
         Label noteText = new Label(
                 "Audio is recorded to a local temporary WAV file. "
-                        + "Speech recognition runs locally. The global shortcut can paste "
-                        + "recognized text into the active application."
+                        + "Speech recognition runs locally. Sticky Notes posting is currently disabled."
         );
         noteText.getStyleClass().add("note-body");
         noteText.setWrapText(true);
@@ -336,6 +362,21 @@ public final class App extends Application {
         center.setAlignment(Pos.TOP_CENTER);
         center.setPadding(new Insets(34));
         root.setCenter(center);
+        javafx.scene.layout.FlowPane brandFooter = new javafx.scene.layout.FlowPane(8, 4);
+        brandFooter.setAlignment(Pos.CENTER);
+        brandFooter.setPadding(new Insets(8));
+        String[][] brandLinks = {
+                {"MIRAKINETIX", "https://mirakinetix.com/"},
+                {"LinkedIn", "https://www.linkedin.com/in/devdutt-parab/"},
+                {"dev dparab.me", "https://dparab.me/"}
+        };
+        for (String[] link : brandLinks) {
+            if (!brandFooter.getChildren().isEmpty()) brandFooter.getChildren().add(new Label("·"));
+            Hyperlink button = new Hyperlink(link[0]);
+            button.setOnAction(event -> getHostServices().showDocument(link[1]));
+            brandFooter.getChildren().add(button);
+        }
+        root.setBottom(brandFooter);
 
         Scene scene = new Scene(root, 1100, 780);
         scene.getStylesheets().add(
@@ -348,7 +389,6 @@ public final class App extends Application {
         stage.setScene(scene);
         stage.setOnCloseRequest(event -> {
             recorder.cancelRecording();
-            hotkeyService.close();
         });
         stage.show();
     }
@@ -357,9 +397,78 @@ public final class App extends Application {
             Path audio,
             String text,
             Throwable error,
-            Throwable insertionError,
-            boolean pastedIntoActiveApp
+            boolean postItRequested,
+            boolean emptyPostItContent,
+            WindowsStickyNotesService.Result postItResult,
+            Throwable postItError
     ) {}
+
+    private record LanguageOption(String name, String code) {
+        @Override
+        public String toString() {
+            return name;
+        }
+    }
+
+    private void sendToStickyNotes(
+            String text,
+            Label feedback,
+            Button postButton,
+            Button installButton
+    ) {
+        postButton.setDisable(true);
+        feedback.setText("Opening Microsoft Sticky Notes...");
+
+        CompletableFuture.supplyAsync(() -> {
+            try {
+                return stickyNotesService.createNote(text);
+            } catch (Exception exception) {
+                throw new CompletionException(exception);
+            }
+        }).whenComplete((result, failure) -> Platform.runLater(() -> {
+            postButton.setDisable(false);
+
+            if (failure != null) {
+                installButton.setVisible(false);
+                installButton.setManaged(false);
+                feedback.setText(
+                        "Transcript kept here, but Sticky Notes could not be opened: "
+                                + errorMessage(failure)
+                                + ". You can copy the text."
+                );
+                return;
+            }
+
+            showStickyNotesResult(result, feedback, installButton);
+        }));
+    }
+
+    private static void showStickyNotesResult(
+            WindowsStickyNotesService.Result result,
+            Label feedback,
+            Button installButton
+    ) {
+        installButton.setVisible(
+                result == WindowsStickyNotesService.Result.NOT_INSTALLED
+        );
+        installButton.setManaged(
+                result == WindowsStickyNotesService.Result.NOT_INSTALLED
+        );
+
+        if (result == WindowsStickyNotesService.Result.CREATED) {
+            feedback.setText("Note added to Microsoft Sticky Notes.");
+        } else if (result == WindowsStickyNotesService.Result.NOT_INSTALLED) {
+            feedback.setText(
+                    "Sticky Notes isn’t installed. Your text is still here; "
+                            + "copy it or install Sticky Notes and try again."
+            );
+        } else {
+            feedback.setText(
+                    "Sticky Notes posting is available on Windows. "
+                            + "Your transcript is still here to copy."
+            );
+        }
+    }
 
     private static String errorMessage(Throwable failure) {
         Throwable cause = failure;

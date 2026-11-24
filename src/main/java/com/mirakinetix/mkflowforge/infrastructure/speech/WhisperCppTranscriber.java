@@ -38,8 +38,17 @@ public final class WhisperCppTranscriber {
 
     public String transcribe(Path audioFile)
             throws IOException, InterruptedException {
+        return transcribe(audioFile, "auto", false);
+    }
+
+    public String transcribe(
+            Path audioFile,
+            String language,
+            boolean translateToEnglish
+    ) throws IOException, InterruptedException {
 
         Path audio = audioFile.toAbsolutePath().normalize();
+        String languageCode = normalizeLanguage(language);
 
         if (!Files.isRegularFile(audio)) {
             throw new IOException("Audio recording not found: " + audio);
@@ -69,17 +78,15 @@ public final class WhisperCppTranscriber {
         Process process = null;
 
         try {
-            List<String> command = List.of(
-                    executable.toString(),
-                    "-m", model.toString(),
-                    "-f", audio.toString(),
-                    "-l", "auto",
-                    "-nt",
-                    "-np",
-                    "-otxt",
-                    "-of", outputBase.toString(),
+            List<String> command = new java.util.ArrayList<>(List.of(
+                    executable.toString(), "-m", model.toString(),
+                    "-f", audio.toString(), "-l", languageCode,
+                    "-nt", "-np", "-otxt", "-of", outputBase.toString(),
                     "-t", Integer.toString(threadCount())
-            );
+            ));
+            if (translateToEnglish) {
+                command.add("-tr");
+            }
 
             ProcessBuilder builder = new ProcessBuilder(command);
             builder.directory(executable.getParent().toFile());
@@ -116,10 +123,14 @@ public final class WhisperCppTranscriber {
                 );
             }
 
-            return Files.readString(
+            String transcript = Files.readString(
                     transcriptFile,
                     StandardCharsets.UTF_8
             ).strip();
+            if (shouldRetryInHindi(transcript, languageCode)) {
+                return transcribe(audioFile, "hi", translateToEnglish);
+            }
+            return transcript;
 
         } catch (InterruptedException exception) {
             if (process != null && process.isAlive()) {
@@ -132,6 +143,37 @@ public final class WhisperCppTranscriber {
             deleteQuietly(logFile);
             deleteQuietly(workDirectory);
         }
+    }
+
+    static boolean shouldRetryInHindi(String text, String languageCode) throws IOException {
+        if (!containsUrduSpecificCharacters(text)) {
+            return false;
+        }
+        if (languageCode.equals("auto")) {
+            return true;
+        }
+        throw new IOException(
+                "Recognition returned unwanted script for the selected language. "
+                        + "Record a shorter phrase in one language and try again."
+        );
+    }
+
+    private static boolean containsUrduSpecificCharacters(String text) {
+        String urduCharacters = "پچژگٹڈڑںھہے";
+        return text.codePoints().anyMatch(
+                codePoint -> urduCharacters.indexOf(codePoint) >= 0
+        );
+    }
+
+    private static String normalizeLanguage(String language) {
+        if (language == null || language.isBlank()) {
+            return "auto";
+        }
+        String code = language.strip().toLowerCase(java.util.Locale.ROOT);
+        if (!code.matches("[a-z]{2,3}|auto")) {
+            throw new IllegalArgumentException("Invalid Whisper language code: " + language);
+        }
+        return code;
     }
 
     private static int threadCount() {
